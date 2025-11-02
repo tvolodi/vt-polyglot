@@ -5,26 +5,52 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:hive/hive.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:vt_polyglot/main.dart';
+import 'package:vt_polyglot/database_helper.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+  setUpAll(() async {
+    // Initialize Hive for testing
+    final tempDir = await getTemporaryDirectory();
+    Hive.init(tempDir.path);
+    await DatabaseHelper.init();
+  });
+
+  tearDownAll(() async {
+    await Hive.close();
+  });
+
+  testWidgets('App launches and shows home page', (WidgetTester tester) async {
     // Build our app and trigger a frame.
     await tester.pumpWidget(const MyApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Verify that the home page is shown
+    expect(find.text('VT-Polyglot'), findsOneWidget);
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+  testWidgets('Navigate to Profile page', (WidgetTester tester) async {
+    await tester.pumpWidget(const MyApp());
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Tap on Profile button
+    await tester.tap(find.text('Profile'));
+    await tester.pumpAndSettle();
+
+    // Verify Profile page is shown
+    expect(find.text('Profile'), findsOneWidget);
+  });
+
+  testWidgets('Navigate to Library page', (WidgetTester tester) async {
+    await tester.pumpWidget(const MyApp());
+
+    // Tap on Library button
+    await tester.tap(find.text('Library'));
+    await tester.pumpAndSettle();
+
+    // Verify Library page is shown
+    expect(find.text('Library'), findsOneWidget);
   });
 }

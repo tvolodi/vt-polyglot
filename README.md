@@ -10,7 +10,8 @@ The author of the project is I - Vladimir Titenko. The code is written mainly wi
 
 Copyright (c) 2024 Vladimir Titenko
 
-# License is licensed under the MIT License.
+# License
+VT-Polyglot is licensed under the MIT License.
 
 ## Features
 
@@ -22,7 +23,11 @@ Copyright (c) 2024 Vladimir Titenko
 - Multimedia content
 - AI-powered recommendations
 
-## Setup
+## Setup for usage
+
+Not so fast! Application is under active development. Stay tuned for updates. As soon as possible I will publish releases for usage. I needed the application for myself too.
+
+## Setup for development
 
 1. **Install Flutter**: Download and install Flutter SDK from [flutter.dev](https://flutter.dev/docs/get-started/install/windows).
 
@@ -58,3 +63,7 @@ Copyright (c) 2024 Vladimir Titenko
 ## Contributing
 
 Add features for lessons, progress, etc., in the `lib/` directory.
+
+## Contact
+
+tvolodi@gmail.com
