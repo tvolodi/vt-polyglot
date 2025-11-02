@@ -2,6 +2,16 @@
 
 A multilingual learning app built with Flutter for web and mobile platforms.
 
+# Disclaimer
+
+The author of the project is I - Vladimir Titenko. The code is written mainly with AI agents under my strict supervision. New era of development is here! So be aware and enjoy! :)
+
+# Copyright
+
+Copyright (c) 2024 Vladimir Titenko
+
+# License is licensed under the MIT License.
+
 ## Features
 
 - Interactive lessons
