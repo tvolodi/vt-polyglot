@@ -104,32 +104,32 @@ class _MyHomePageState extends State<MyHomePage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             ElevatedButton(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => GrammarPage())),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const GrammarPage())),
               child: const Text('Grammar'),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => WritingPage())),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const WritingPage())),
               child: const Text('Writing'),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ReadingPage())),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ReadingPage())),
               child: const Text('Reading'),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ListeningPage())),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ListeningPage())),
               child: const Text('Listening'),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ProfilePage())),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage())),
               child: const Text('Profile'),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => LibraryPage())),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LibraryPage())),
               child: const Text('Library'),
             ),
           ],
@@ -182,6 +182,30 @@ class Story {
   bool selected;
 
   Story({required this.author, required this.theme, required this.name, this.selected = false});
+}
+
+class AIModelConfig {
+  String function;
+  String modelCode;
+  String apiKey;
+
+  AIModelConfig({
+    required this.function,
+    required this.modelCode,
+    required this.apiKey,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'function': function,
+    'modelCode': modelCode,
+    'apiKey': apiKey,
+  };
+
+  factory AIModelConfig.fromJson(Map<String, dynamic> json) => AIModelConfig(
+    function: json['function'],
+    modelCode: json['modelCode'],
+    apiKey: json['apiKey'],
+  );
 }
 
 class ListeningPage extends StatefulWidget {
@@ -277,6 +301,7 @@ class _ProfilePageState extends State<ProfilePage> {
   String? myLanguage;
   String? learningLanguage;
   String? apiKey;
+  List<AIModelConfig> aiModelConfigs = [];
 
   SharedPreferences? prefs;
 
@@ -300,6 +325,14 @@ class _ProfilePageState extends State<ProfilePage> {
     'Ukrainian',
   ];
 
+  final List<String> availableFunctions = [
+    'default',
+    'find story in internet',
+    'text-to-speech',
+    'translate text',
+    'generate story',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -313,7 +346,18 @@ class _ProfilePageState extends State<ProfilePage> {
       learningLanguage = prefs?.getString('learningLanguage');
       apiKey = prefs?.getString('apiKey');
       apiKeyController.text = apiKey ?? '';
+      _loadAIModelConfigs();
     });
+  }
+
+  void _loadAIModelConfigs() {
+    final configsJson = prefs?.getStringList('aiModelConfigs') ?? [];
+    aiModelConfigs = configsJson.map((json) => AIModelConfig.fromJson(jsonDecode(json))).toList();
+  }
+
+  Future<void> _saveAIModelConfigs() async {
+    final configsJson = aiModelConfigs.map((config) => jsonEncode(config.toJson())).toList();
+    await prefs?.setStringList('aiModelConfigs', configsJson);
   }
 
   Future<void> _saveMyLanguage(String? value) async {
@@ -331,11 +375,93 @@ class _ProfilePageState extends State<ProfilePage> {
     await prefs?.setString('apiKey', value);
   }
 
+  void _showAIModelConfigDialog([AIModelConfig? config]) {
+    final isEditing = config != null;
+    final functionController = TextEditingController(text: config?.function ?? '');
+    final modelCodeController = TextEditingController(text: config?.modelCode ?? '');
+    final apiKeyController = TextEditingController(text: config?.apiKey ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(isEditing ? 'Edit AI Model Config' : 'Add AI Model Config'),
+        content: SingleChildScrollView(
+          child: Column(
+            children: [
+              DropdownButtonFormField<String>(
+                value: functionController.text.isEmpty ? null : functionController.text,
+                decoration: const InputDecoration(labelText: 'Function'),
+                items: availableFunctions.map((function) => DropdownMenuItem(
+                  value: function,
+                  child: Text(function),
+                )).toList(),
+                onChanged: (value) => functionController.text = value ?? '',
+              ),
+              TextField(
+                controller: modelCodeController,
+                decoration: const InputDecoration(labelText: 'AI Model Code'),
+              ),
+              TextField(
+                controller: apiKeyController,
+                decoration: const InputDecoration(labelText: 'API Key'),
+                obscureText: true,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () {
+            if (functionController.text.isEmpty || modelCodeController.text.isEmpty || apiKeyController.text.isEmpty) {
+              return;
+            }
+
+            final newConfig = AIModelConfig(
+              function: functionController.text,
+              modelCode: modelCodeController.text,
+              apiKey: apiKeyController.text,
+            );
+
+            setState(() {
+              if (isEditing) {
+                final index = aiModelConfigs.indexOf(config!);
+                aiModelConfigs[index] = newConfig;
+              } else {
+                aiModelConfigs.add(newConfig);
+              }
+            });
+
+            _saveAIModelConfigs();
+            Navigator.pop(context);
+          }, child: Text(isEditing ? 'Save' : 'Add')),
+        ],
+      ),
+    );
+  }
+
+  void _deleteAIModelConfig(AIModelConfig config) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete AI Model Config'),
+        content: const Text('Are you sure you want to delete this configuration?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () {
+            setState(() => aiModelConfigs.remove(config));
+            _saveAIModelConfigs();
+            Navigator.pop(context);
+          }, child: const Text('Delete')),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Profile')),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -391,11 +517,72 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               onChanged: _saveApiKey,
             ),
+            const SizedBox(height: 40),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('AI Model Configurations', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                ElevatedButton(
+                  onPressed: () => _showAIModelConfigDialog(),
+                  child: const Text('Add New'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            if (aiModelConfigs.isEmpty)
+              const Text('No AI model configurations added yet.')
+            else
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  columns: const [
+                    DataColumn(label: Text('Function')),
+                    DataColumn(label: Text('Model Code')),
+                    DataColumn(label: Text('API Key')),
+                    DataColumn(label: Text('Actions')),
+                  ],
+                  rows: aiModelConfigs.map((config) => DataRow(
+                    cells: [
+                      DataCell(Text(config.function)),
+                      DataCell(Text(config.modelCode)),
+                      DataCell(Text('*' * config.apiKey.length)), // Mask the API key
+                      DataCell(Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit),
+                            onPressed: () => _showAIModelConfigDialog(config),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete),
+                            onPressed: () => _deleteAIModelConfig(config),
+                          ),
+                        ],
+                      )),
+                    ],
+                  )).toList(),
+                ),
+              ),
           ],
         ),
       ),
     );
   }
+}
+
+Future<AIModelConfig?> getAIModelConfigForFunction(String function) async {
+  final prefs = await SharedPreferences.getInstance();
+  final configsJson = prefs.getStringList('aiModelConfigs') ?? [];
+  final configs = configsJson.map((json) => AIModelConfig.fromJson(jsonDecode(json))).toList();
+  
+  // First try to find exact match
+  final exactMatch = configs.where((config) => config.function == function).toList();
+  if (exactMatch.isNotEmpty) {
+    return exactMatch.first;
+  }
+  
+  // If no exact match, return default
+  final defaultConfig = configs.where((config) => config.function == 'default').toList();
+  return defaultConfig.isNotEmpty ? defaultConfig.first : null;
 }
 
 class LibraryPage extends StatefulWidget {
@@ -452,7 +639,7 @@ class _LibraryPageState extends State<LibraryPage> {
     TextEditingController sourceUrlController = TextEditingController();
     TextEditingController textController = TextEditingController();
 
-    Future<void> _pickFile() async {
+    Future<void> pickFile() async {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['txt'],
@@ -486,7 +673,7 @@ class _LibraryPageState extends State<LibraryPage> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.file_upload),
-                    onPressed: _pickFile,
+                    onPressed: pickFile,
                     tooltip: 'Load from file',
                   ),
                 ],
@@ -522,7 +709,7 @@ class _LibraryPageState extends State<LibraryPage> {
     TextEditingController sourceUrlController = TextEditingController(text: story.sourceUrl ?? '');
     TextEditingController textController = TextEditingController(text: story.text);
 
-    Future<void> _pickFile() async {
+    Future<void> pickFile() async {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['txt'],
@@ -556,7 +743,7 @@ class _LibraryPageState extends State<LibraryPage> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.file_upload),
-                    onPressed: _pickFile,
+                    onPressed: pickFile,
                     tooltip: 'Load from file',
                   ),
                 ],
