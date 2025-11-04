@@ -17,3 +17,7 @@ Future<AIModelConfig?> getAIModelConfigForFunction(String function) async {
   final defaultConfig = configs.where((config) => config.function == 'default').toList();
   return defaultConfig.isNotEmpty ? defaultConfig.first : null;
 }
+
+Future<AIModelConfig?> getGoogleAPIConfig() async {
+  return getAIModelConfigForFunction('google_api');
+}

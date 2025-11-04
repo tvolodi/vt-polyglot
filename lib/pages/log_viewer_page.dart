@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/app_logger.dart';
 
 class LogViewerPage extends StatefulWidget {
@@ -42,6 +43,28 @@ class _LogViewerPageState extends State<LogViewerPage> {
         SnackBar(content: Text('Failed to load logs: $e')),
       );
     }
+  }
+
+  Future<void> _copyAllLogs() async {
+    if (logs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No logs to copy')),
+      );
+      return;
+    }
+
+    final allLogsText = logs.map((log) {
+      return '''
+[${log['level']}] ${log['category']} - ${_formatTimestamp(log['timestamp'])}
+${log['message']}
+${log['details'] != null ? 'Details: ${log['details']}' : ''}
+'''.trim();
+    }).join('\n\n---\n\n');
+
+    await Clipboard.setData(ClipboardData(text: allLogsText));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('All logs copied to clipboard')),
+    );
   }
 
   Future<void> _clearLogs() async {
@@ -103,6 +126,11 @@ class _LogViewerPageState extends State<LogViewerPage> {
         title: const Text('Application Logs'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.copy_all),
+            onPressed: logs.isNotEmpty ? _copyAllLogs : null,
+            tooltip: 'Copy All Logs',
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadLogs,
             tooltip: 'Refresh',
@@ -119,47 +147,52 @@ class _LogViewerPageState extends State<LogViewerPage> {
         child: Column(
           children: [
             // Filters
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(
-                      labelText: 'Category',
-                      border: OutlineInputBorder(),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: MediaQuery.of(context).size.width * 0.4,
+                    child: DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(
+                        labelText: 'Category',
+                        border: OutlineInputBorder(),
+                      ),
+                      value: selectedCategory ?? 'ALL',
+                      items: categories.map((category) => DropdownMenuItem(
+                        value: category,
+                        child: Text(category),
+                      )).toList(),
+                      onChanged: (value) {
+                        setState(() => selectedCategory = value);
+                        _loadLogs();
+                      },
                     ),
-                    value: selectedCategory ?? 'ALL',
-                    items: categories.map((category) => DropdownMenuItem(
-                      value: category,
-                      child: Text(category),
-                    )).toList(),
-                    onChanged: (value) {
-                      setState(() => selectedCategory = value);
-                      _loadLogs();
-                    },
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(
-                      labelText: 'Level',
-                      border: OutlineInputBorder(),
+                  const SizedBox(width: 16),
+                  SizedBox(
+                    width: MediaQuery.of(context).size.width * 0.4,
+                    child: DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(
+                        labelText: 'Level',
+                        border: OutlineInputBorder(),
+                      ),
+                      value: selectedLevel ?? 'ALL',
+                      items: levels.map((level) => DropdownMenuItem(
+                        value: level,
+                        child: Text(level),
+                      )).toList(),
+                      onChanged: (value) {
+                        setState(() => selectedLevel = value);
+                        _loadLogs();
+                      },
                     ),
-                    value: selectedLevel ?? 'ALL',
-                    items: levels.map((level) => DropdownMenuItem(
-                      value: level,
-                      child: Text(level),
-                    )).toList(),
-                    onChanged: (value) {
-                      setState(() => selectedLevel = value);
-                      _loadLogs();
-                    },
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(height: 16),
-            Text(
+            SelectableText(
               '${logs.length} log entries',
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
@@ -169,7 +202,7 @@ class _LogViewerPageState extends State<LogViewerPage> {
               child: isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : logs.isEmpty
-                      ? const Center(child: Text('No logs found'))
+                      ? const Center(child: SelectableText('No logs found'))
                       : ListView.builder(
                           itemCount: logs.length,
                           itemBuilder: (context, index) {
@@ -199,7 +232,7 @@ class _LogViewerPageState extends State<LogViewerPage> {
                                           ),
                                         ),
                                         const SizedBox(width: 8),
-                                        Text(
+                                        SelectableText(
                                           log['category'],
                                           style: const TextStyle(
                                             fontSize: 12,
@@ -207,17 +240,32 @@ class _LogViewerPageState extends State<LogViewerPage> {
                                           ),
                                         ),
                                         const Spacer(),
-                                        Text(
+                                        SelectableText(
                                           _formatTimestamp(log['timestamp']),
                                           style: const TextStyle(
                                             fontSize: 12,
                                             color: Colors.grey,
                                           ),
                                         ),
+                                        IconButton(
+                                          icon: const Icon(Icons.copy, size: 16),
+                                          onPressed: () async {
+                                            final fullLogText = '''
+[${log['level']}] ${log['category']} - ${_formatTimestamp(log['timestamp'])}
+${log['message']}
+${log['details'] != null ? '\nDetails: ${log['details']}' : ''}
+'''.trim();
+                                            await Clipboard.setData(ClipboardData(text: fullLogText));
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(content: Text('Log copied to clipboard')),
+                                            );
+                                          },
+                                          tooltip: 'Copy full log entry',
+                                        ),
                                       ],
                                     ),
                                     const SizedBox(height: 8),
-                                    Text(
+                                    SelectableText(
                                       log['message'],
                                       style: const TextStyle(fontSize: 14),
                                     ),

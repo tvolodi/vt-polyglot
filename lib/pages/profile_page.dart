@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:dropdown_search/dropdown_search.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import '../services/ai_assessment_service.dart';
 import '../models/ai_model_config.dart';
 import 'available_ai_models_page.dart';
 import 'log_viewer_page.dart';
@@ -48,6 +49,7 @@ class _ProfilePageState extends State<ProfilePage> {
     'speech-to-text',
     'translate text',
     'generate story',
+    'google_api',
   ];
 
   @override
@@ -71,11 +73,16 @@ class _ProfilePageState extends State<ProfilePage> {
     final configsJson = prefs?.getStringList('aiModelConfigs') ?? [];
     aiModelConfigs = configsJson.map((json) => AIModelConfig.fromJson(jsonDecode(json))).toList();
     
-    // If no configurations exist, add default configuration
+    // If no configurations exist, add default configurations
     if (aiModelConfigs.isEmpty) {
       aiModelConfigs.add(AIModelConfig(
         function: 'default',
         modelCode: 'gemini-2.5-flash-lite',
+        apiKey: '',
+      ));
+      aiModelConfigs.add(AIModelConfig(
+        function: 'google_api',
+        modelCode: 'speech-to-text',
         apiKey: '',
       ));
       _saveAIModelConfigs();
@@ -252,6 +259,96 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Future<void> _runSpeechToTextTest() async {
+    try {
+      final aiService = AIAssessmentService();
+      await aiService.initialize();
+
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          title: Text('Testing Speech-to-Text'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Running integration tests...'),
+            ],
+          ),
+        ),
+      );
+
+      final testResult = await aiService.testSpeechToTextIntegration();
+
+      // Close loading dialog
+      Navigator.pop(context);
+
+      // Show results
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(testResult['success'] ? 'Test Passed!' : 'Test Failed'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Configuration Check: ${testResult['test_results']['config_check'] ? '✓' : '✗'}'),
+                Text('API Connectivity: ${testResult['test_results']['api_connectivity'] ? '✓' : '✗'}'),
+                Text('Transcription Test: ${testResult['test_results']['transcription_test'] ? '✓' : '✗'}'),
+                if (testResult['error'] != null) ...[
+                  const SizedBox(height: 16),
+                  const Text('Error:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(testResult['error']),
+                ],
+                if (testResult['transcription_details'] != null) ...[
+                  const SizedBox(height: 16),
+                  const Text('Transcription Details:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text('Expected: ${testResult['transcription_details']['expected_text']}'),
+                  Text('Transcribed: ${testResult['transcription_details']['transcribed_text'] ?? 'N/A'}'),
+                  if (testResult['transcription_details']['similarity_score'] != null)
+                    Text('Similarity: ${(testResult['transcription_details']['similarity_score'] * 100).round()}%'),
+                  if (testResult['transcription_details']['note'] != null) ...[
+                    const SizedBox(height: 8),
+                    Text('Note: ${testResult['transcription_details']['note']}', 
+                         style: TextStyle(fontStyle: FontStyle.italic, color: Colors.blue)),
+                  ],
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+
+    } catch (e) {
+      // Close loading dialog if open
+      Navigator.pop(context);
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Test Error'),
+          content: Text('Failed to run test: $e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -321,6 +418,11 @@ class _ProfilePageState extends State<ProfilePage> {
             ElevatedButton(
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LogViewerPage())),
               child: const Text('View Application Logs'),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _runSpeechToTextTest,
+              child: const Text('Test Speech-to-Text API'),
             ),
             const SizedBox(height: 40),
             Column(
