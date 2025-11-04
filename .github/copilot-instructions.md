@@ -13,9 +13,9 @@
 - [x] Install Required Extensions
 	<!-- None required -->
 
-- [ ] Compile the Project
+- [x] Compile the Project
 
-- [ ] Compile the Project
+- [x] Compile the Project
 	<!--
 	Verify that all previous steps have been completed.
 	Install any missing dependencies.

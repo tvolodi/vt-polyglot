@@ -83,6 +83,166 @@ class MyApp extends StatelessWidget {
   }
 }
 
+class AvailableAIModelsPage extends StatefulWidget {
+  const AvailableAIModelsPage({super.key});
+
+  @override
+  _AvailableAIModelsPageState createState() => _AvailableAIModelsPageState();
+}
+
+class _AvailableAIModelsPageState extends State<AvailableAIModelsPage> {
+  List<AIModel> aiModels = [];
+  bool isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAIModels();
+  }
+
+  void _loadAIModels() {
+    setState(() {
+      aiModels = DatabaseHelper.getAIModels();
+    });
+  }
+
+  Future<void> _updateAIModels() async {
+    setState(() => isLoading = true);
+
+    try {
+      // Get the API key from settings
+      final prefs = await SharedPreferences.getInstance();
+      final apiKey = prefs.getString('apiKey');
+
+      if (apiKey == null || apiKey.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please set an AI API Key in Settings first')),
+        );
+        return;
+      }
+
+      // Call AI API to get available models
+      final model = GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: apiKey);
+      final content = [Content.text('List all available AI models from major providers like Google, OpenAI, Anthropic, etc. For each model, provide: name, provider, model_code, description, and capabilities (as array). Return as JSON array of objects.')];
+      final response = await model.generateContent(content);
+      final text = response.text;
+
+      if (text != null) {
+        try {
+          // Clean the response text by removing markdown code blocks
+          String cleanText = text.trim();
+          if (cleanText.startsWith('```json')) {
+            cleanText = cleanText.substring(7); // Remove ```json
+          }
+          if (cleanText.startsWith('```')) {
+            cleanText = cleanText.substring(3); // Remove ```
+          }
+          if (cleanText.endsWith('```')) {
+            cleanText = cleanText.substring(0, cleanText.length - 3); // Remove ```
+          }
+          cleanText = cleanText.trim();
+
+          final List<dynamic> modelsList = jsonDecode(cleanText);
+          
+          // Clear existing models
+          await DatabaseHelper.clearAIModels();
+          
+          // Add new models
+          for (final modelData in modelsList) {
+            final aiModel = AIModel(
+              name: modelData['name'] ?? 'Unknown',
+              provider: modelData['provider'] ?? 'Unknown',
+              modelCode: modelData['model_code'] ?? modelData['modelCode'] ?? 'unknown',
+              description: modelData['description'] ?? '',
+              capabilities: List<String>.from(modelData['capabilities'] ?? []),
+            );
+            await DatabaseHelper.addAIModel(aiModel);
+          }
+
+          _loadAIModels();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('AI models updated successfully')),
+          );
+        } catch (e) {
+          print('Error parsing AI models: $e');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Error parsing AI response')),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No response from AI API')),
+        );
+      }
+    } catch (e) {
+      print('Error updating AI models: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error updating AI models: $e')),
+      );
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Available AI Models')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text('Available AI Models', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                ),
+                ElevatedButton(
+                  onPressed: isLoading ? null : _updateAIModels,
+                  child: isLoading 
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Update'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            if (aiModels.isEmpty && !isLoading)
+              const Text('No AI models available. Press Update to fetch from AI API.')
+            else
+              Expanded(
+                child: ListView.builder(
+                  itemCount: aiModels.length,
+                  itemBuilder: (context, index) {
+                    final model = aiModels[index];
+                    return Card(
+                      child: ListTile(
+                        title: Text(model.name),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Provider: ${model.provider}'),
+                            Text('Model Code: ${model.modelCode}'),
+                            Text('Description: ${model.description}'),
+                            Text('Capabilities: ${model.capabilities.join(', ')}'),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
 
@@ -125,7 +285,7 @@ class _MyHomePageState extends State<MyHomePage> {
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage())),
-              child: const Text('Profile'),
+              child: const Text('Settings'),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
@@ -246,7 +406,20 @@ class _ListeningPageState extends State<ListeningPage> {
     print("response text: $text");
     if (text != null) {
       try {
-        final List<dynamic> storyList = jsonDecode(text);
+        // Clean the response text by removing markdown code blocks
+        String cleanText = text.trim();
+        if (cleanText.startsWith('```json')) {
+          cleanText = cleanText.substring(7); // Remove ```json
+        }
+        if (cleanText.startsWith('```')) {
+          cleanText = cleanText.substring(3); // Remove ```
+        }
+        if (cleanText.endsWith('```')) {
+          cleanText = cleanText.substring(0, cleanText.length - 3); // Remove ```
+        }
+        cleanText = cleanText.trim();
+
+        final List<dynamic> storyList = jsonDecode(cleanText);
         setState(() {
           stories = storyList.map((s) => Story(author: s['author'] ?? '', theme: s['theme'] ?? '', name: s['name'] ?? '')).toList();
         });
@@ -353,6 +526,16 @@ class _ProfilePageState extends State<ProfilePage> {
   void _loadAIModelConfigs() {
     final configsJson = prefs?.getStringList('aiModelConfigs') ?? [];
     aiModelConfigs = configsJson.map((json) => AIModelConfig.fromJson(jsonDecode(json))).toList();
+    
+    // If no configurations exist, add default configuration
+    if (aiModelConfigs.isEmpty) {
+      aiModelConfigs.add(AIModelConfig(
+        function: 'default',
+        modelCode: 'gemini-2.5-flash-lite',
+        apiKey: '',
+      ));
+      _saveAIModelConfigs();
+    }
   }
 
   Future<void> _saveAIModelConfigs() async {
@@ -375,21 +558,19 @@ class _ProfilePageState extends State<ProfilePage> {
     await prefs?.setString('apiKey', value);
   }
 
-  void _showAIModelConfigDialog([AIModelConfig? config]) {
-    final isEditing = config != null;
-    final functionController = TextEditingController(text: config?.function ?? '');
-    final modelCodeController = TextEditingController(text: config?.modelCode ?? '');
-    final apiKeyController = TextEditingController(text: config?.apiKey ?? '');
+  void _showAddAIModelConfigDialog() {
+    final functionController = TextEditingController();
+    final modelCodeController = TextEditingController();
+    final apiKeyController = TextEditingController();
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(isEditing ? 'Edit AI Model Config' : 'Add AI Model Config'),
+        title: const Text('Add AI Model Config'),
         content: SingleChildScrollView(
           child: Column(
             children: [
               DropdownButtonFormField<String>(
-                value: functionController.text.isEmpty ? null : functionController.text,
                 decoration: const InputDecoration(labelText: 'Function'),
                 items: availableFunctions.map((function) => DropdownMenuItem(
                   value: function,
@@ -397,10 +578,12 @@ class _ProfilePageState extends State<ProfilePage> {
                 )).toList(),
                 onChanged: (value) => functionController.text = value ?? '',
               ),
+              const SizedBox(height: 16),
               TextField(
                 controller: modelCodeController,
                 decoration: const InputDecoration(labelText: 'AI Model Code'),
               ),
+              const SizedBox(height: 16),
               TextField(
                 controller: apiKeyController,
                 decoration: const InputDecoration(labelText: 'API Key'),
@@ -413,6 +596,9 @@ class _ProfilePageState extends State<ProfilePage> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           TextButton(onPressed: () {
             if (functionController.text.isEmpty || modelCodeController.text.isEmpty || apiKeyController.text.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Please fill in all fields')),
+              );
               return;
             }
 
@@ -423,17 +609,82 @@ class _ProfilePageState extends State<ProfilePage> {
             );
 
             setState(() {
-              if (isEditing) {
-                final index = aiModelConfigs.indexOf(config!);
-                aiModelConfigs[index] = newConfig;
-              } else {
-                aiModelConfigs.add(newConfig);
-              }
+              aiModelConfigs.add(newConfig);
             });
 
             _saveAIModelConfigs();
             Navigator.pop(context);
-          }, child: Text(isEditing ? 'Save' : 'Add')),
+          }, child: const Text('Add')),
+        ],
+      ),
+    );
+  }
+
+  void _showAIModelConfigDetails(AIModelConfig config) {
+    final functionController = TextEditingController(text: config.function);
+    final modelCodeController = TextEditingController(text: config.modelCode);
+    final apiKeyController = TextEditingController(text: config.apiKey);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('AI Model Configuration Details'),
+        content: SingleChildScrollView(
+          child: Column(
+            children: [
+              DropdownButtonFormField<String>(
+                value: functionController.text,
+                decoration: const InputDecoration(labelText: 'Function'),
+                items: availableFunctions.map((function) => DropdownMenuItem(
+                  value: function,
+                  child: Text(function),
+                )).toList(),
+                onChanged: (value) => functionController.text = value ?? '',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: modelCodeController,
+                decoration: const InputDecoration(labelText: 'AI Model Code'),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: apiKeyController,
+                decoration: const InputDecoration(labelText: 'API Key'),
+                obscureText: true,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              if (functionController.text.isEmpty || modelCodeController.text.isEmpty || apiKeyController.text.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please fill in all fields')),
+                );
+                return;
+              }
+
+              final updatedConfig = AIModelConfig(
+                function: functionController.text,
+                modelCode: modelCodeController.text,
+                apiKey: apiKeyController.text,
+              );
+
+              setState(() {
+                final index = aiModelConfigs.indexOf(config);
+                aiModelConfigs[index] = updatedConfig;
+              });
+
+              _saveAIModelConfigs();
+              Navigator.pop(context);
+            },
+            child: const Text('Save Changes'),
+          ),
         ],
       ),
     );
@@ -518,12 +769,18 @@ class _ProfilePageState extends State<ProfilePage> {
               onChanged: _saveApiKey,
             ),
             const SizedBox(height: 40),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            ElevatedButton(
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AvailableAIModelsPage())),
+              child: const Text('Available AI Models'),
+            ),
+            const SizedBox(height: 40),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('AI Model Configurations', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 10),
                 ElevatedButton(
-                  onPressed: () => _showAIModelConfigDialog(),
+                  onPressed: () => _showAddAIModelConfigDialog(),
                   child: const Text('Add New'),
                 ),
               ],
@@ -532,35 +789,33 @@ class _ProfilePageState extends State<ProfilePage> {
             if (aiModelConfigs.isEmpty)
               const Text('No AI model configurations added yet.')
             else
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: DataTable(
-                  columns: const [
-                    DataColumn(label: Text('Function')),
-                    DataColumn(label: Text('Model Code')),
-                    DataColumn(label: Text('API Key')),
-                    DataColumn(label: Text('Actions')),
-                  ],
-                  rows: aiModelConfigs.map((config) => DataRow(
-                    cells: [
-                      DataCell(Text(config.function)),
-                      DataCell(Text(config.modelCode)),
-                      DataCell(Text('*' * config.apiKey.length)), // Mask the API key
-                      DataCell(Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit),
-                            onPressed: () => _showAIModelConfigDialog(config),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Tap on a configuration to edit or delete it'),
+                  const SizedBox(height: 10),
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: aiModelConfigs.length,
+                    itemBuilder: (context, index) {
+                      final config = aiModelConfigs[index];
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          title: Text(config.function),
+                          subtitle: Text('${config.modelCode}\nAPI Key: ${'*' * config.apiKey.length}'),
+                          isThreeLine: true,
+                          onTap: () => _showAIModelConfigDetails(config),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
                             onPressed: () => _deleteAIModelConfig(config),
                           ),
-                        ],
-                      )),
-                    ],
-                  )).toList(),
-                ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
           ],
         ),
