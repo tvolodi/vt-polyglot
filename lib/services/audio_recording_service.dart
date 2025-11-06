@@ -76,10 +76,10 @@ class AudioRecordingService {
         throw Exception('Recording file is too small to play (only header)');
       }
 
-      // Use aacADTS codec for record package output
+      // Use pcm16bit codec for WAV files
       await _player!.startPlayer(
         fromURI: filePath,
-        codec: Codec.aacADTS, // Record package produces AAC files
+        codec: Codec.pcm16WAV, // WAV files use PCM codec
         sampleRate: 16000,
         numChannels: 1,
       );
@@ -137,7 +137,7 @@ class AudioRecordingService {
 
     try {
       final directory = await getTemporaryDirectory();
-      final fileName = 'recording_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      final fileName = 'recording_${DateTime.now().millisecondsSinceEpoch}.wav';
       _currentRecordingPath = '${directory.path}/$fileName';
 
       await AppLogger.logReadingAloudEvent('Starting recording with record package', details: 'Path: $_currentRecordingPath');
@@ -151,7 +151,7 @@ class AudioRecordingService {
       // Start recording with record package
       await _audioRecorder.start(
         const RecordConfig(
-          encoder: AudioEncoder.aacLc,
+          encoder: AudioEncoder.wav,  // Use WAV format for Google Cloud compatibility
           sampleRate: 16000,
           numChannels: 1,
         ),

@@ -274,7 +274,7 @@ class AIAssessmentService {
       final recognitionAudio = speech.RecognitionAudio()..content = base64Encode(audioBytes);
 
       final recognitionConfig = speech.RecognitionConfig()
-        ..encoding = 'LINEAR16'  // Assuming WAV format from recording
+        ..encoding = 'LINEAR16'  // WAV format from recording
         ..sampleRateHertz = 16000  // Common sample rate for recordings
         ..languageCode = 'en-US'  // Default to English, could be made configurable
         ..enableAutomaticPunctuation = true
